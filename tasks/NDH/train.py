@@ -27,8 +27,9 @@ IMAGENET_FEATURES = 'img_features/ResNet-152-imagenet.tsv'
 agent_type = 'seq2seq'
 
 # Fixed params from MP.
+
 features = IMAGENET_FEATURES
-batch_size = 100
+batch_size = 512
 word_embedding_size = 256
 action_embedding_size = 32
 target_embedding_size = 32
@@ -226,17 +227,17 @@ if __name__ == "__main__":
 
     # Creating results and plots directories
 
-    if not os.path.exists("tasks/NDH/results"):
+    if not os.path.exists(RESULT_DIR):
         print("Results directory does not exists. Creating it now...")
-        os.mkdir("tasks/NDH/results")
+        os.mkdir(RESULT_DIR)
 
-    if not os.path.exists("tasks/NDH/plots"):
+    if not os.path.exists(PLOT_DIR):
         print("Plots directory does not exists. Creating it now...")
-        os.mkdir("tasks/NDH/plots")
+        os.mkdir(PLOT_DIR)
 
-    if not os.path.exists("tasks/NDH/snapshots"):
+    if not os.path.exists(SNAPSHOT_DIR):
         print("Snapshots directory does not exists. Creating it now...")
-        os.mkdir("tasks/NDH/snapshots")
+        os.mkdir(SNAPSHOT_DIR)
 
     # Set default args.
     path_type = args.path_type
