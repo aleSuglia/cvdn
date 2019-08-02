@@ -1,17 +1,17 @@
 ''' Evaluation of agent trajectories '''
 
 import json
-import os
-import sys
+import pprint
 from collections import defaultdict
+
 import networkx as nx
 import numpy as np
-import pprint
+
 pp = pprint.PrettyPrinter(indent=4)
 
 from env import R2RBatch
 from utils import load_datasets, load_nav_graphs
-from agent import BaseAgent, StopAgent, RandomAgent, ShortestAgent
+from agent import BaseAgent
 
 
 class Evaluation(object):
@@ -32,7 +32,7 @@ class Evaluation(object):
         self.graphs = load_nav_graphs(self.scans)
         self.distances = {}
         self.path_type = path_type
-        for scan,G in self.graphs.iteritems(): # compute all shortest paths
+        for scan, G in self.graphs.iteritems():  # compute all shortest paths
             self.distances[scan] = dict(nx.all_pairs_dijkstra_path_length(G))
 
     def _get_nearest(self, scan, goal_id, path):
@@ -76,9 +76,9 @@ class Evaluation(object):
                 try:
                     self.graphs[gt['scan']][prev[0]][curr[0]]
                 except KeyError as err:
-                    print 'Error: The provided trajectory moves from %s to %s but the navigation graph contains no '\
-                        'edge between these viewpoints. Please ensure the provided navigation trajectories '\
-                        'are valid, so that trajectory length can be accurately calculated.' % (prev[0], curr[0])
+                    print('Error: The provided trajectory moves from %s to %s but the navigation graph contains no ' \
+                    'edge between these viewpoints. Please ensure the provided navigation trajectories ' \
+                    'are valid, so that trajectory length can be accurately calculated.' % (prev[0], curr[0]))
                     raise
             distance += self.distances[gt['scan']][prev[0]][curr[0]]
             prev = curr
@@ -103,7 +103,8 @@ class Evaluation(object):
         oracle_plan_successes = len([i for i in self.scores['oracle_plan_errors'] if i < self.error_margin])
 
         spls = []
-        for err, length, sp in zip(self.scores['nav_errors'], self.scores['trajectory_lengths'], self.scores['shortest_path_lengths']):
+        for err, length, sp in zip(self.scores['nav_errors'], self.scores['trajectory_lengths'],
+                                   self.scores['shortest_path_lengths']):
             if err < self.error_margin:
                 if sp > 0:
                     spls.append(sp / max(length, sp))
@@ -111,15 +112,16 @@ class Evaluation(object):
                     spls.append(1 if length == 0 else 0)
             else:
                 spls.append(0)
-        
-        score_summary ={
+
+        score_summary = {
             'length': np.average(self.scores['trajectory_lengths']),
             'nav_error': np.average(self.scores['nav_errors']),
-            'oracle success_rate': float(oracle_successes)/float(len(self.scores['oracle_errors'])),
-            'success_rate': float(num_successes)/float(len(self.scores['nav_errors'])),
+            'oracle success_rate': float(oracle_successes) / float(len(self.scores['oracle_errors'])),
+            'success_rate': float(num_successes) / float(len(self.scores['nav_errors'])),
             'spl': np.average(spls),
-            'oracle path_success_rate': float(oracle_plan_successes)/float(len(self.scores['oracle_plan_errors'])),
-            'dist_to_end_reduction': sum(self.scores['dist_to_end_reductions']) / float(len(self.scores['dist_to_end_reductions']))
+            'oracle path_success_rate': float(oracle_plan_successes) / float(len(self.scores['oracle_plan_errors'])),
+            'dist_to_end_reduction': sum(self.scores['dist_to_end_reductions']) / float(
+                len(self.scores['dist_to_end_reductions']))
         }
 
         assert score_summary['spl'] <= score_summary['success_rate']
@@ -144,7 +146,7 @@ def eval_simple_agents():
             agent.test()
             agent.write_results()
             score_summary, _ = ev.score(outfile)
-            print '\n%s' % agent_type
+            print('\n%s' % agent_type)
             pp.pprint(score_summary)
 
 
@@ -158,11 +160,10 @@ def eval_seq2seq():
         for split in ['val_seen', 'val_unseen']:
             ev = Evaluation([split])
             score_summary, _ = ev.score(outfile % split)
-            print '\n%s' % outfile
+            print('\n%s' % outfile)
             pp.pprint(score_summary)
 
 
 if __name__ == '__main__':
-
     eval_simple_agents()
-    #eval_seq2seq()
+    # eval_seq2seq()
