@@ -12,7 +12,7 @@ from torch import optim
 from agent import Seq2SeqAgent
 from env import R2RBatch
 from eval import Evaluation
-from model import EncoderLSTM, AttnDecoderLSTM, ConcatEncoderLSTM
+from model import EncoderLSTM, AttnDecoderLSTM
 from utils import read_vocab, write_vocab, build_vocab, Tokenizer, padding_idx, timeSince
 
 TRAIN_VOCAB = 'tasks/NDH/data/train_vocab.txt'
@@ -140,8 +140,13 @@ def test_submission(path_type, max_episode_len, history, MAX_INPUT_LENGTH, feedb
     # Generate test submission
     test_env = R2RBatch(features, batch_size=batch_size, splits=['test'], tokenizer=tok,
                         path_type=path_type, history=history, blind=blind)
-    agent = Seq2SeqAgent(test_env, "", encoder, decoder, max_episode_len)
-    agent.results_path = '%s%s_%s_iter_%d.json' % (RESULT_DIR, model_prefix, 'test', 20000)
+    agent = Seq2SeqAgent(
+        test_env,
+        '%s%s_%s_iter_%d.json' % (RESULT_DIR, model_prefix, 'test', 20000),
+        encoder,
+        decoder,
+        max_episode_len
+    )
     agent.test(use_dropout=False, feedback='argmax')
     agent.write_results()
 
@@ -219,6 +224,20 @@ if __name__ == "__main__":
 
     blind = args.blind
 
+    # Creating results and plots directories
+
+    if not os.path.exists("tasks/NDH/results"):
+        print("Results directory does not exists. Creating it now...")
+        os.mkdir("tasks/NDH/results")
+
+    if not os.path.exists("tasks/NDH/plots"):
+        print("Plots directory does not exists. Creating it now...")
+        os.mkdir("tasks/NDH/plots")
+
+    if not os.path.exists("tasks/NDH/snapshots"):
+        print("Snapshots directory does not exists. Creating it now...")
+        os.mkdir("tasks/NDH/snapshots")
+
     # Set default args.
     path_type = args.path_type
     # In MP, max_episode_len = 20 while average hop range [4, 7], e.g. ~3x max.
@@ -248,7 +267,7 @@ if __name__ == "__main__":
 
     # Model prefix to uniquely id this instance.
     model_prefix = '%s-seq2seq-%s-%s-%d-%s-imagenet' % (
-    args.eval_type, history, path_type, max_episode_len, feedback_method)
+        args.eval_type, history, path_type, max_episode_len, feedback_method)
     if blind:
         model_prefix += '-blind'
 

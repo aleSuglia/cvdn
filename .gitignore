@@ -13,6 +13,11 @@
 *.zip
 /tasks/R2R/data/*.json
 /tasks/R2R/data/*_vocab.txt
-tasks/CVDN/data/tasks/CVDN/data/*.json
-tasks/NDH/data/tasks/NDH/data/*.json
-tasks/NDH_NavHistConcat/data/tasks/NDH_NavHistConcat/data/*.json
+tasks/CVDN/data/tasks/CVDN/data/*
+tasks/NDH/data/tasks/NDH/data/*
+tasks/NDH_NavHistConcat/data/tasks/NDH_NavHistConcat/data/*
+tasks/NDH/plots/
+tasks/NDH/results/
+tasks/NDH_NavHistConcat/plots/
+tasks/NDH_NavHistConcat/results/
+

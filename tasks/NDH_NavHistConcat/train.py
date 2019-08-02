@@ -224,6 +224,18 @@ if __name__ == "__main__":
     assert args.feedback in ['sample', 'teacher']
     assert args.eval_type in ['val', 'test']
 
+    if not os.path.exists("tasks/NDH_NavHistConcat/results"):
+        print("Results directory does not exists. Creating it now...")
+        os.mkdir("tasks/NDH_NavHistConcat/results")
+
+    if not os.path.exists("tasks/NDH_NavHistConcat/plots"):
+        print("Plots directory does not exists. Creating it now...")
+        os.mkdir("tasks/NDH_NavHistConcat/plots")
+
+    if not os.path.exists("tasks/NDH_NavHistConcat/snapshots"):
+        print("Snapshots directory does not exists. Creating it now...")
+        os.mkdir("tasks/NDH_NavHistConcat/snapshots")
+
     # Set default args.
     path_type = args.path_type
     # In MP, max_episode_len = 20 while average hop range [4, 7], e.g. ~3x max.
