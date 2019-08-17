@@ -1,13 +1,13 @@
 ''' Batched Room-to-Room navigation environment '''
 
 import sys
+
 sys.path.append('build')
 import MatterSim
 import csv
 import numpy as np
 import math
 import base64
-import json
 import random
 import networkx as nx
 
@@ -15,8 +15,9 @@ from utils import load_datasets, load_nav_graphs
 
 csv.field_size_limit(sys.maxsize)
 
-HEADING_INCREMENT=np.pi*2.0/12.0
-NAV_HIST_SEQ_LENGTH=12
+HEADING_INCREMENT = np.pi * 2.0 / 12.0
+NAV_HIST_SEQ_LENGTH = 12
+
 
 class EnvBatch():
     ''' A simple wrapper for a batch of MatterSim environments, 
@@ -24,20 +25,20 @@ class EnvBatch():
 
     def __init__(self, feature_store=None, batch_size=100):
         if feature_store:
-            print 'Loading image features from %s' % feature_store
-            tsv_fieldnames = ['scanId', 'viewpointId', 'image_w','image_h', 'vfov', 'features']
+            print('Loading image features from %s' % feature_store)
+            tsv_fieldnames = ['scanId', 'viewpointId', 'image_w', 'image_h', 'vfov', 'features']
             self.features = {}
             with open(feature_store, "r+b") as tsv_in_file:
-                reader = csv.DictReader(tsv_in_file, delimiter='\t', fieldnames = tsv_fieldnames)
+                reader = csv.DictReader(tsv_in_file, delimiter='\t', fieldnames=tsv_fieldnames)
                 for item in reader:
                     self.image_h = int(item['image_h'])
                     self.image_w = int(item['image_w'])
                     self.vfov = int(item['vfov'])
                     long_id = self._make_id(item['scanId'], item['viewpointId'])
-                    self.features[long_id] = np.frombuffer(base64.decodestring(item['features']), 
-                            dtype=np.float32).reshape((36, 2048))
+                    self.features[long_id] = np.frombuffer(base64.decodestring(item['features']),
+                                                           dtype=np.float32).reshape((36, 2048))
         else:
-            print 'Image features not provided'
+            print('Image features not provided')
             self.features = None
             self.image_w = 640
             self.image_h = 480
@@ -52,18 +53,18 @@ class EnvBatch():
         self.sim.initialize()
 
     def _make_id(self, scanId, viewpointId):
-        return scanId + '_' + viewpointId   
+        return scanId + '_' + viewpointId
 
     def newEpisodes(self, scanIds, viewpointIds, headings):
-        self.sim.newEpisode(scanIds, viewpointIds, headings, [0]*self.batch_size)
-  
+        self.sim.newEpisode(scanIds, viewpointIds, headings, [0] * self.batch_size)
+
     def getStates(self):
         ''' Get list of states augmented with precomputed image features. rgb field will be empty. '''
         feature_states = []
         for state in self.sim.getState():
             long_id = self._make_id(state.scanId, state.location.viewpointId)
             if self.features:
-                feature = self.features[long_id][state.viewIndex,:]
+                feature = self.features[long_id][state.viewIndex, :]
                 feature_states.append((feature, state))
             else:
                 feature_states.append((None, state))
@@ -75,7 +76,7 @@ class EnvBatch():
         ix = []
         heading = []
         elevation = []
-        for i,h,e in actions:
+        for i, h, e in actions:
             ix.append(int(i))
             heading.append(float(h))
             elevation.append(float(e))
@@ -91,13 +92,13 @@ class EnvBatch():
             if index == 0:
                 actions.append((1, 0, 0))
             elif index == 1:
-                actions.append((0,-1, 0))
+                actions.append((0, -1, 0))
             elif index == 2:
                 actions.append((0, 1, 0))
             elif index == 3:
                 actions.append((0, 0, 1))
             elif index == 4:
-                actions.append((0, 0,-1))
+                actions.append((0, 0, -1))
             else:
                 sys.exit("Invalid simple action");
         self.makeActions(actions)
@@ -113,7 +114,7 @@ class R2RBatch():
         self.data = []
         self.scans = [item['scan'] for item in datasets]
         self._load_nav_graphs()
-        for item in datasets:  
+        for item in datasets:
             # For every dialog history, stitch together a single instruction string.
             new_item = dict(item)
             new_item['inst_idx'] = item['inst_idx']
@@ -152,26 +153,27 @@ class R2RBatch():
                 if tokenizer:
                     dia_enc = tokenizer.encode_sentence(sentences, seps=seps)
                     new_item['instr_encoding'] = dia_enc
-            
+
             # TODO: add a flag to enable/disable nav history
             new_item['nav_hist_encoding'] = []
-            for nav_idx,pano in enumerate(item['nav_history']):
+            for nav_idx, pano in enumerate(item['nav_history']):
                 view_index = 0
-                if nav_idx+1 < len(item['nav_history']):
-                    next_pano = item['nav_history'][nav_idx+1]
+                if nav_idx + 1 < len(item['nav_history']):
+                    next_pano = item['nav_history'][nav_idx + 1]
                     pos = self.graphs[item['scan']].node[pano]['position']
                     next_pos = self.graphs[item['scan']].node[next_pano]['position']
                     target_rel = next_pos - pos
-                    target_heading = math.pi/2.0 - math.atan2(target_rel[1], target_rel[0])
+                    target_heading = math.pi / 2.0 - math.atan2(target_rel[1], target_rel[0])
                     if target_heading < 0:
                         target_heading += math.pi * 2
                     view_index = int(round(target_heading / HEADING_INCREMENT) + 12)
 
-                feature = self.env.features[item['scan'] + '_' + pano][view_index,:]
+                feature = self.env.features[item['scan'] + '_' + pano][view_index, :]
                 new_item['nav_hist_encoding'].append(pano + '_' + str(view_index))
-            
+
             new_item['nav_hist_encoding'].reverse()
-            new_item['nav_hist_encoding'] = tokenizer.pad_or_trunc_sequence(new_item['nav_hist_encoding'], NAV_HIST_SEQ_LENGTH, "")
+            new_item['nav_hist_encoding'] = tokenizer.pad_or_trunc_sequence(new_item['nav_hist_encoding'],
+                                                                            NAV_HIST_SEQ_LENGTH, "")
 
             self.data.append(new_item)
         self.scans = set(self.scans)
@@ -182,21 +184,21 @@ class R2RBatch():
         self.ix = 0
         self.batch_size = batch_size
         self.path_type = path_type
-        print 'R2RBatch loaded with %d instructions, using splits: %s' % (len(self.data), ",".join(splits))
+        print('R2RBatch loaded with %d instructions, using splits: %s' % (len(self.data), ",".join(splits)))
 
     def _load_nav_graphs(self):
         ''' Load connectivity graph for each scan, useful for reasoning about shortest paths '''
-        print 'Loading navigation graphs for %d scans' % len(self.scans)
+        print('Loading navigation graphs for %d scans' % len(self.scans))
         self.graphs = load_nav_graphs(self.scans)
         self.paths = {}
-        for scan,G in self.graphs.iteritems(): # compute all shortest paths
+        for scan, G in self.graphs.iteritems():  # compute all shortest paths
             self.paths[scan] = dict(nx.all_pairs_dijkstra_path(G))
         self.distances = {}
-        for scan,G in self.graphs.iteritems(): # compute all shortest paths
+        for scan, G in self.graphs.iteritems():  # compute all shortest paths
             self.distances[scan] = dict(nx.all_pairs_dijkstra_path_length(G))
 
     def _next_minibatch(self):
-        batch = self.data[self.ix:self.ix+self.batch_size]
+        batch = self.data[self.ix:self.ix + self.batch_size]
         if len(batch) < self.batch_size:
             random.shuffle(self.data)
             self.ix = self.batch_size - len(batch)
@@ -213,43 +215,43 @@ class R2RBatch():
     def _shortest_path_action(self, state, goalViewpointId):
         ''' Determine next action on the shortest path to goal, for supervised training. '''
         if state.location.viewpointId == goalViewpointId:
-            return (0, 0, 0) # do nothing
+            return (0, 0, 0)  # do nothing
         path = self.paths[state.scanId][state.location.viewpointId][goalViewpointId]
         nextViewpointId = path[1]
         # Can we see the next viewpoint?
-        for i,loc in enumerate(state.navigableLocations):
+        for i, loc in enumerate(state.navigableLocations):
             if loc.viewpointId == nextViewpointId:
                 # Look directly at the viewpoint before moving
-                if loc.rel_heading > math.pi/6.0:
-                      return (0, 1, 0) # Turn right
-                elif loc.rel_heading < -math.pi/6.0: 
-                      return (0,-1, 0) # Turn left
-                elif loc.rel_elevation > math.pi/6.0 and state.viewIndex//12 < 2:
-                      return (0, 0, 1) # Look up
-                elif loc.rel_elevation < -math.pi/6.0 and state.viewIndex//12 > 0:
-                      return (0, 0,-1) # Look down            
+                if loc.rel_heading > math.pi / 6.0:
+                    return (0, 1, 0)  # Turn right
+                elif loc.rel_heading < -math.pi / 6.0:
+                    return (0, -1, 0)  # Turn left
+                elif loc.rel_elevation > math.pi / 6.0 and state.viewIndex // 12 < 2:
+                    return (0, 0, 1)  # Look up
+                elif loc.rel_elevation < -math.pi / 6.0 and state.viewIndex // 12 > 0:
+                    return (0, 0, -1)  # Look down
                 else:
-                      return (i, 0, 0) # Move
+                    return (i, 0, 0)  # Move
         # Can't see it - first neutralize camera elevation
-        if state.viewIndex//12 == 0:
-            return (0, 0, 1) # Look up
-        elif state.viewIndex//12 == 2:
-            return (0, 0,-1) # Look down
+        if state.viewIndex // 12 == 0:
+            return (0, 0, 1)  # Look up
+        elif state.viewIndex // 12 == 2:
+            return (0, 0, -1)  # Look down
         # Otherwise decide which way to turn
         pos = [state.location.x, state.location.y, state.location.z]
         target_rel = self.graphs[state.scanId].node[nextViewpointId]['position'] - pos
-        target_heading = math.pi/2.0 - math.atan2(target_rel[1], target_rel[0]) # convert to rel to y axis
+        target_heading = math.pi / 2.0 - math.atan2(target_rel[1], target_rel[0])  # convert to rel to y axis
         if target_heading < 0:
-            target_heading += 2.0*math.pi
+            target_heading += 2.0 * math.pi
         if state.heading > target_heading and state.heading - target_heading < math.pi:
-            return (0,-1, 0) # Turn left  
+            return (0, -1, 0)  # Turn left
         if target_heading > state.heading and target_heading - state.heading > math.pi:
-            return (0,-1, 0) # Turn left
-        return (0, 1, 0) # Turn right
+            return (0, -1, 0)  # Turn left
+        return (0, 1, 0)  # Turn right
 
     def _get_obs(self):
         obs = []
-        for i,(feature,state) in enumerate(self.env.getStates()):
+        for i, (feature, state) in enumerate(self.env.getStates()):
             item = self.batch[i]
             obs.append({
                 'inst_idx': item['inst_idx'],
@@ -277,11 +279,9 @@ class R2RBatch():
         viewpointIds = [item[self.path_type][0] for item in self.batch]
         headings = [item['start_pano']['heading'] for item in self.batch]
         self.env.newEpisodes(scanIds, viewpointIds, headings)
-        return self._get_obs()   
+        return self._get_obs()
 
     def step(self, actions):
         ''' Take action (same interface as makeActions) '''
         self.env.makeActions(actions)
         return self._get_obs()
-
-

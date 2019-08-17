@@ -1,23 +1,19 @@
 import argparse
-
-import torch
-import torch.nn as nn
-from torch.autograd import Variable
-from torch import optim
-import torch.nn.functional as F
-
 import os
+import sys
 import time
-import numpy as np
-import pandas as pd
 from collections import defaultdict
 
-from utils import read_vocab,write_vocab,build_vocab,Tokenizer,padding_idx,timeSince
-from env import R2RBatch
-from model import EncoderLSTM, AttnDecoderLSTM
-from agent import Seq2SeqAgent
-from eval import Evaluation
+import numpy as np
+import pandas as pd
+import torch
+from torch import optim
 
+from agent import Seq2SeqAgent
+from env import R2RBatch
+from eval import Evaluation
+from model import EncoderLSTM, AttnDecoderLSTM
+from utils import read_vocab, write_vocab, build_vocab, Tokenizer, padding_idx, timeSince
 
 TRAIN_VOCAB = 'tasks/NDH/data/train_vocab.txt'
 TRAINVAL_VOCAB = 'tasks/NDH/data/trainval_vocab.txt'
@@ -31,8 +27,9 @@ IMAGENET_FEATURES = 'img_features/ResNet-152-imagenet.tsv'
 agent_type = 'seq2seq'
 
 # Fixed params from MP.
+
 features = IMAGENET_FEATURES
-batch_size = 100
+batch_size = 512
 word_embedding_size = 256
 action_embedding_size = 32
 target_embedding_size = 32
@@ -42,8 +39,10 @@ dropout_ratio = 0.5
 learning_rate = 0.0001
 weight_decay = 0.0005
 
-def train(train_env, encoder, decoder, n_iters, path_type, history, feedback_method, max_episode_len, MAX_INPUT_LENGTH, model_prefix,
-    log_every=100, val_envs=None):
+
+def train(train_env, encoder, decoder, n_iters, path_type, history, feedback_method, max_episode_len, MAX_INPUT_LENGTH,
+          model_prefix,
+          log_every=100, val_envs=None):
     ''' Train on training set, validating on both seen and unseen. '''
     if val_envs is None:
         val_envs = {}
@@ -52,16 +51,16 @@ def train(train_env, encoder, decoder, n_iters, path_type, history, feedback_met
         agent = Seq2SeqAgent(train_env, "", encoder, decoder, max_episode_len)
     else:
         sys.exit("Unrecognized agent_type '%s'" % agent_type)
-    print 'Training a %s agent with %s feedback' % (agent_type, feedback_method)
+    print('Training a %s agent with %s feedback' % (agent_type, feedback_method))
     encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate, weight_decay=weight_decay) 
+    decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     data_log = defaultdict(list)
     start = time.time()
-   
+
     for idx in range(0, n_iters, log_every):
 
-        interval = min(log_every,n_iters-idx)
+        interval = min(log_every, n_iters - idx)
         iter = idx + interval
         data_log['iteration'].append(iter)
 
@@ -89,22 +88,24 @@ def train(train_env, encoder, decoder, n_iters, path_type, history, feedback_met
             loss_str += ', %s loss: %.4f' % (env_name, val_loss_avg)
             for metric, val in score_summary.iteritems():
                 data_log['%s %s' % (env_name, metric)].append(val)
-                if metric in ['success_rate', 'oracle success_rate', 'oracle path_success_rate', 'dist_to_end_reduction']:
+                if metric in ['success_rate', 'oracle success_rate', 'oracle path_success_rate',
+                              'dist_to_end_reduction']:
                     loss_str += ', %s: %.3f' % (metric, val)
 
         agent.env = train_env
 
-        print('%s (%d %d%%) %s' % (timeSince(start, float(iter)/n_iters),
-                                             iter, float(iter)/n_iters*100, loss_str))
+        print('%s (%d %d%%) %s' % (timeSince(start, float(iter) / n_iters),
+                                   iter, float(iter) / n_iters * 100, loss_str))
         df = pd.DataFrame(data_log)
         df.set_index('iteration')
         df_path = '%s%s-log.csv' % (PLOT_DIR, model_prefix)
         df.to_csv(df_path)
-        
+
         split_string = "-".join(train_env.splits)
         enc_path = '%s%s_%s_enc_iter_%d' % (SNAPSHOT_DIR, model_prefix, split_string, iter)
         dec_path = '%s%s_%s_dec_iter_%d' % (SNAPSHOT_DIR, model_prefix, split_string, iter)
         agent.save(enc_path, dec_path)
+
 
 def setup():
     torch.manual_seed(1)
@@ -116,9 +117,10 @@ def setup():
         write_vocab(build_vocab(splits=['train', 'val_seen', 'val_unseen']), TRAINVAL_VOCAB)
 
 
-def test_submission(path_type, max_episode_len, history, MAX_INPUT_LENGTH, feedback_method, n_iters, model_prefix, blind):
+def test_submission(path_type, max_episode_len, history, MAX_INPUT_LENGTH, feedback_method, n_iters, model_prefix,
+                    blind):
     ''' Train on combined training and validation sets, and generate test submission. '''
-  
+
     setup()
 
     # Create a batch training environment that will also preprocess text
@@ -126,20 +128,26 @@ def test_submission(path_type, max_episode_len, history, MAX_INPUT_LENGTH, feedb
     tok = Tokenizer(vocab=vocab, encoding_length=MAX_INPUT_LENGTH)
     train_env = R2RBatch(features, batch_size=batch_size, splits=['train', 'val_seen', 'val_unseen'], tokenizer=tok,
                          path_type=path_type, history=history, blind=blind)
-    
+
     # Build models and train
-    enc_hidden_size = hidden_size//2 if bidirectional else hidden_size
-    encoder = EncoderLSTM(len(vocab), word_embedding_size, enc_hidden_size, padding_idx, 
-                  dropout_ratio, bidirectional=bidirectional).cuda()
+    enc_hidden_size = hidden_size // 2 if bidirectional else hidden_size
+    encoder = EncoderLSTM(len(vocab), word_embedding_size, enc_hidden_size, padding_idx,
+                          dropout_ratio, bidirectional=bidirectional).cuda()
     decoder = AttnDecoderLSTM(Seq2SeqAgent.n_inputs(), Seq2SeqAgent.n_outputs(),
-                  action_embedding_size, hidden_size, dropout_ratio).cuda()
-    train(train_env, encoder, decoder, n_iters, path_type, history, feedback_method, max_episode_len, MAX_INPUT_LENGTH, model_prefix)
+                              action_embedding_size, hidden_size, dropout_ratio).cuda()
+    train(train_env, encoder, decoder, n_iters, path_type, history, feedback_method, max_episode_len, MAX_INPUT_LENGTH,
+          model_prefix)
 
     # Generate test submission
     test_env = R2RBatch(features, batch_size=batch_size, splits=['test'], tokenizer=tok,
                         path_type=path_type, history=history, blind=blind)
-    agent = Seq2SeqAgent(test_env, "", encoder, decoder, max_episode_len)
-    agent.results_path = '%s%s_%s_iter_%d.json' % (RESULT_DIR, model_prefix, 'test', 20000)
+    agent = Seq2SeqAgent(
+        test_env,
+        '%s%s_%s_iter_%d.json' % (RESULT_DIR, model_prefix, 'test', 20000),
+        encoder,
+        decoder,
+        max_episode_len
+    )
     agent.test(use_dropout=False, feedback='argmax')
     agent.write_results()
 
@@ -172,7 +180,7 @@ def train_test(path_type, max_episode_len, history, MAX_INPUT_LENGTH, feedback_m
 
 def train_val(path_type, max_episode_len, history, MAX_INPUT_LENGTH, feedback_method, n_iters, model_prefix, blind):
     ''' Train on the training set, and validate on seen and unseen splits. '''
-  
+
     setup()
     # Create a batch training environment that will also preprocess text
     vocab = read_vocab(TRAIN_VOCAB)
@@ -181,16 +189,16 @@ def train_val(path_type, max_episode_len, history, MAX_INPUT_LENGTH, feedback_me
                          path_type=path_type, history=history, blind=blind)
 
     # Creat validation environments
-    val_envs = {split: (R2RBatch(features, batch_size=batch_size, splits=[split], 
-                tokenizer=tok, path_type=path_type, history=history, blind=blind),
-                Evaluation([split], path_type=path_type)) for split in ['val_seen', 'val_unseen']}
+    val_envs = {split: (R2RBatch(features, batch_size=batch_size, splits=[split],
+                                 tokenizer=tok, path_type=path_type, history=history, blind=blind),
+                        Evaluation([split], path_type=path_type)) for split in ['val_seen', 'val_unseen']}
 
     # Build models and train
-    enc_hidden_size = hidden_size//2 if bidirectional else hidden_size
-    encoder = EncoderLSTM(len(vocab), word_embedding_size, enc_hidden_size, padding_idx, 
-                  dropout_ratio, bidirectional=bidirectional).cuda()
+    enc_hidden_size = hidden_size // 2 if bidirectional else hidden_size
+    encoder = EncoderLSTM(len(vocab), word_embedding_size, enc_hidden_size, padding_idx,
+                          dropout_ratio, bidirectional=bidirectional).cuda()
     decoder = AttnDecoderLSTM(Seq2SeqAgent.n_inputs(), Seq2SeqAgent.n_outputs(),
-                  action_embedding_size, hidden_size, dropout_ratio).cuda()
+                              action_embedding_size, hidden_size, dropout_ratio).cuda()
     train(train_env, encoder, decoder, n_iters,
           path_type, history, feedback_method, max_episode_len, MAX_INPUT_LENGTH, model_prefix, val_envs=val_envs)
 
@@ -216,6 +224,20 @@ if __name__ == "__main__":
     assert args.eval_type in ['val', 'test']
 
     blind = args.blind
+
+    # Creating results and plots directories
+
+    if not os.path.exists(RESULT_DIR):
+        print("Results directory does not exists. Creating it now...")
+        os.mkdir(RESULT_DIR)
+
+    if not os.path.exists(PLOT_DIR):
+        print("Plots directory does not exists. Creating it now...")
+        os.mkdir(PLOT_DIR)
+
+    if not os.path.exists(SNAPSHOT_DIR):
+        print("Snapshots directory does not exists. Creating it now...")
+        os.mkdir(SNAPSHOT_DIR)
 
     # Set default args.
     path_type = args.path_type
@@ -245,7 +267,8 @@ if __name__ == "__main__":
     n_iters = 5000 if feedback_method == 'teacher' else 20000
 
     # Model prefix to uniquely id this instance.
-    model_prefix = '%s-seq2seq-%s-%s-%d-%s-imagenet' % (args.eval_type, history, path_type, max_episode_len, feedback_method)
+    model_prefix = '%s-seq2seq-%s-%s-%d-%s-imagenet' % (
+        args.eval_type, history, path_type, max_episode_len, feedback_method)
     if blind:
         model_prefix += '-blind'
 
