@@ -20,8 +20,6 @@ split_files = {
     "valid_unseen": "val_unseen.jsonl"
 }
 
-EPISODE_LENGTH = 20
-
 
 def load_nav_graphs_paths(scans):
     graphs = load_nav_graphs(scans)
@@ -139,7 +137,7 @@ def main(args):
         full_mod_path = os.path.join(args.output, split_file)
         print("Writing updated version of the dataset file: {}".format(full_mod_path))
         with open(full_mod_path, mode="w") as out_file:
-            out_file.writelines(json.dumps(ex) for ex in dataset)
+            out_file.writelines(json.dumps(ex) + "\n" for ex in dataset)
 
 
 if __name__ == "__main__":
