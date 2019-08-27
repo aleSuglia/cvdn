@@ -88,30 +88,40 @@ def generate_actions_for_split(dataset, simulator):
         state = None
 
         simulator.newEpisode(scanIds, viewpointIds, headings, [0])
+        start_index = 1
+        prev_nav_idx = 0
+        turn_actions = None
 
-        for camera in item["nav_camera"]:
-            turn_actions = []
+        for turn in item["dialog_history"]:
+            nav_idx = turn["nav_idx"]
 
-            for message in camera["message"]:
-                for i, state in enumerate(simulator.getState()):
-                    action_metadata = shortest_path_action(state, message["pano"], paths, graphs)
-                    command = action_metadata["command"]
-                    i, h, e = int(command[0]), float(command[1]), float(command[2])
+            if nav_idx == prev_nav_idx:
+                # replicate the previous turn actions
+                actions_metadata.append(turn_actions)
+            else:
+                turn_actions = []
+                for nav_step in item["nav_steps"][start_index:nav_idx]:
+                    for i, state in enumerate(simulator.getState()):
+                        action_metadata = shortest_path_action(state, nav_step, paths, graphs)
+                        command = action_metadata["command"]
+                        i, h, e = int(command[0]), float(command[1]), float(command[2])
 
-                    simulator.makeAction([i], [h], [e])
+                        simulator.makeAction([i], [h], [e])
 
-                    turn_actions.append(
-                        {
-                            'viewpoint': state.location.viewpointId,
-                            'viewIndex': state.viewIndex,
-                            'heading': state.heading,
-                            'elevation': state.elevation,
-                            'step': state.step,
-                            'action': action_metadata
-                        }
-                    )
+                        turn_actions.append(
+                            {
+                                'viewpoint': state.location.viewpointId,
+                                'viewIndex': state.viewIndex,
+                                'heading': state.heading,
+                                'elevation': state.elevation,
+                                'step': state.step,
+                                'action': action_metadata
+                            }
+                        )
+                start_index = nav_idx+1
+                actions_metadata.append(turn_actions)
 
-            actions_metadata.append(turn_actions)
+            prev_nav_idx = nav_idx
 
         item["actions"] = actions_metadata
 
