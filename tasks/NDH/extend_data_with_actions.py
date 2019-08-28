@@ -116,24 +116,30 @@ def generate_actions_for_split(dataset, simulator):
                 turn_actions = []
 
                 for nav_step in item["nav_steps"][nav_idx:end_index]:
-                    for state in simulator.getState():
-                        action_metadata = shortest_path_action(state, nav_step, paths, graphs)
-                        command = action_metadata["command"]
-                        ai, ah, ae = int(command[0]), float(command[1]), float(command[2])
 
-                        simulator.makeAction([ai], [ah], [ae])
+                    nav_step_reached = False
 
-                        turn_actions.append(
-                            {
-                                'viewpoint': state.location.viewpointId,
-                                'viewIndex': state.viewIndex,
-                                'heading': state.heading,
-                                'elevation': state.elevation,
-                                'step': state.step,
-                                'action': action_metadata,
-                                'nav_step': nav_step
-                            }
-                        )
+                    while not nav_step_reached:
+                        for state in simulator.getState():
+                            action_metadata = shortest_path_action(state, nav_step, paths, graphs)
+                            command = action_metadata["command"]
+                            ai, ah, ae = int(command[0]), float(command[1]), float(command[2])
+
+                            simulator.makeAction([ai], [ah], [ae])
+
+                            turn_actions.append(
+                                {
+                                    'viewpoint': state.location.viewpointId,
+                                    'viewIndex': state.viewIndex,
+                                    'heading': state.heading,
+                                    'elevation': state.elevation,
+                                    'step': state.step,
+                                    'action': action_metadata
+                                }
+                            )
+
+                        if state.location.viewpointId == nav_step:
+                            nav_step_reached = True
 
                 actions_metadata.append(turn_actions)
 
