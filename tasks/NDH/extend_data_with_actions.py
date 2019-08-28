@@ -81,40 +81,64 @@ def generate_actions_for_split(dataset, simulator):
     # we extract from the nav camera the information associated to the current path
     for item in dataset:
         scanIds = [item["scan"]]
-        viewpointIds = [item["planner_path"][0]]
+        viewpointIds = [item['start_pano']['pano']]
         headings = [item['start_pano']['heading']]
 
         actions_metadata = []
         state = None
 
         simulator.newEpisode(scanIds, viewpointIds, headings, [0])
+        start_index = 1
+        prev_nav_idx = -1
+        turn_actions = None
 
-        for camera in item["nav_camera"]:
-            turn_actions = []
+        for i, turn in enumerate(item["dialog_history"]):
+            nav_idx = turn["nav_idx"]
 
-            for message in camera["message"]:
-                for i, state in enumerate(simulator.getState()):
-                    action_metadata = shortest_path_action(state, message["pano"], paths, graphs)
-                    command = action_metadata["command"]
-                    i, h, e = int(command[0]), float(command[1]), float(command[2])
+            if nav_idx == prev_nav_idx:
+                # replicate the previous turn actions
+                actions_metadata.append(turn_actions)
+            else:
+                if i == len(item["dialog_history"]):
+                    end_index = None
+                else:
+                    found = False
 
-                    simulator.makeAction([i], [h], [e])
+                    for j in range(i, len(item["dialog_history"])):
+                       if item["dialog_history"][j]["nav_idx"] != nav_idx:
+                           end_index = item["dialog_history"][j]["nav_idx"]
+                           found = True
+                           break
 
-                    turn_actions.append(
-                        {
-                            'viewpoint': state.location.viewpointId,
-                            'viewIndex': state.viewIndex,
-                            'heading': state.heading,
-                            'elevation': state.elevation,
-                            'step': state.step,
-                            'action': action_metadata
-                        }
-                    )
+                    if not found:
+                       end_index = None
 
-            actions_metadata.append(turn_actions)
+                turn_actions = []
 
+                for nav_step in item["nav_steps"][nav_idx:end_index]:
+                    for state in simulator.getState():
+                        action_metadata = shortest_path_action(state, nav_step, paths, graphs)
+                        command = action_metadata["command"]
+                        ai, ah, ae = int(command[0]), float(command[1]), float(command[2])
+
+                        simulator.makeAction([ai], [ah], [ae])
+
+                        turn_actions.append(
+                            {
+                                'viewpoint': state.location.viewpointId,
+                                'viewIndex': state.viewIndex,
+                                'heading': state.heading,
+                                'elevation': state.elevation,
+                                'step': state.step,
+                                'action': action_metadata,
+                                'nav_step': nav_step
+                            }
+                        )
+
+                actions_metadata.append(turn_actions)
+
+            prev_nav_idx = nav_idx
         item["actions"] = actions_metadata
-
 
 def main(args):
     print("Initialising the Matterport simulator")
