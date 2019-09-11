@@ -10,6 +10,7 @@ import json
 import math
 import os
 import sys
+
 import cv2
 import numpy as np
 
@@ -23,7 +24,6 @@ import MatterSim
 WIDTH = 640
 HEIGHT = 480
 VFOV = 60
-
 
 dataset_files = {
     "train": "train.jsonl",
@@ -119,20 +119,19 @@ def main(args):
     sim.setDiscretizedViewingAngles(True)
     sim.initialize()
 
-
     for split_id, split_name in dataset_files.items():
         dataset_path = os.path.join(args.dataset_folder, split_name)
 
         for navigation_images, action_images in extract_images_from_dataset(dataset_path, sim):
             # todo: do something with them!
             for image, scanId, viewpointId, targetIdx in action_images:
-                cv2.imwrite("%s-%s-%d.png".format(scanId, viewpointId, targetIdx), image)
+                cv2.imwrite(os.path.join(args.output_folder, "%s-%s-%d.png".format(scanId, viewpointId, targetIdx)), image)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scanId', type=str, required=True)
-    parser.add_argument('--viewpointId', type=str, required=True)
-    parser.add_argument('--ix', type=int, required=True)
+    parser.add_argument('-dataset_folder', type=str, required=True)
+    parser.add_argument('-output_folder', type=str, required=True)
     args = parser.parse_args()
 
     main(args)
